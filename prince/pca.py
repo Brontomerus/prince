@@ -1,13 +1,11 @@
 """Principal Component Analysis (PCA)"""
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn import base
 from sklearn import preprocessing
 from sklearn import utils
+import warnings
 
-from . import plot
 from . import svd
 
 
@@ -137,6 +135,10 @@ class PCA(base.BaseEstimator, base.TransformerMixin):
 
         return pd.DataFrame(data=X.dot(self.V_.T), index=index, dtype=np.float64)
 
+        
+
+        
+
     def row_standard_coordinates(self, X):
         """Returns the row standard coordinates.
 
@@ -206,59 +208,71 @@ class PCA(base.BaseEstimator, base.TransformerMixin):
                              labels=None, color_labels=None, ellipse_outline=False,
                              ellipse_fill=True, show_points=True, **kwargs):
         """Plot the row principal coordinates."""
-        self._check_is_fitted()
+        try:
+            # lazy-load the matplotlib library
+            import matplotlib.pyplot as plt
+            import matplotlib as mpl
+        except ImportError:
+            plt = None
+            mpl =None
 
-        if ax is None:
-            fig, ax = plt.subplots(figsize=figsize)
+        if plt is not None and mpl is not None:        
+            self._check_is_fitted()
 
-        # Add style
-        ax = plot.stylize_axis(ax)
+            if ax is None:
+                fig, ax = plt.subplots(figsize=figsize)
 
-        # Make sure X is a DataFrame
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
+            # Add style
+            ax = plot.stylize_axis(ax)
 
-        # Retrieve principal coordinates
-        coordinates = self.row_coordinates(X)
-        x = coordinates[x_component].astype(np.float)
-        y = coordinates[y_component].astype(np.float)
+            # Make sure X is a DataFrame
+            if not isinstance(X, pd.DataFrame):
+                X = pd.DataFrame(X)
 
-        # Plot
-        if color_labels is None:
-            ax.scatter(x, y, **kwargs)
+            # Retrieve principal coordinates
+            coordinates = self.row_coordinates(X)
+            x = coordinates[x_component].astype(np.float)
+            y = coordinates[y_component].astype(np.float)
+
+            # Plot
+            if color_labels is None:
+                ax.scatter(x, y, **kwargs)
+            else:
+                for color_label in sorted(list(set(color_labels))):
+                    mask = np.array(color_labels) == color_label
+                    color = ax._get_lines.get_next_color()
+                    # Plot points
+                    if show_points:
+                        ax.scatter(x[mask], y[mask], color=color, **kwargs, label=color_label)
+                    # Plot ellipse
+                    if (ellipse_outline or ellipse_fill):
+                        x_mean, y_mean, width, height, angle = plot.build_ellipse(x[mask], y[mask])
+                        ax.add_patch(mpl.patches.Ellipse(
+                            (x_mean, y_mean),
+                            width,
+                            height,
+                            angle=angle,
+                            linewidth=2 if ellipse_outline else 0,
+                            color=color,
+                            fill=ellipse_fill,
+                            alpha=0.2 + (0.3 if not show_points else 0) if ellipse_fill else 1
+                        ))
+
+            # Add labels
+            if labels is not None:
+                for xi, yi, label in zip(x, y, labels):
+                    ax.annotate(label, (xi, yi))
+
+            # Legend
+            ax.legend()
+
+            # Text
+            ax.set_title('Row principal coordinates')
+            ei = self.explained_inertia_
+            ax.set_xlabel('Component {} ({:.2f}% inertia)'.format(x_component, 100 * ei[x_component]))
+            ax.set_ylabel('Component {} ({:.2f}% inertia)'.format(y_component, 100 * ei[y_component]))
+
+            return ax
+
         else:
-            for color_label in sorted(list(set(color_labels))):
-                mask = np.array(color_labels) == color_label
-                color = ax._get_lines.get_next_color()
-                # Plot points
-                if show_points:
-                    ax.scatter(x[mask], y[mask], color=color, **kwargs, label=color_label)
-                # Plot ellipse
-                if (ellipse_outline or ellipse_fill):
-                    x_mean, y_mean, width, height, angle = plot.build_ellipse(x[mask], y[mask])
-                    ax.add_patch(mpl.patches.Ellipse(
-                        (x_mean, y_mean),
-                        width,
-                        height,
-                        angle=angle,
-                        linewidth=2 if ellipse_outline else 0,
-                        color=color,
-                        fill=ellipse_fill,
-                        alpha=0.2 + (0.3 if not show_points else 0) if ellipse_fill else 1
-                    ))
-
-        # Add labels
-        if labels is not None:
-            for xi, yi, label in zip(x, y, labels):
-                ax.annotate(label, (xi, yi))
-
-        # Legend
-        ax.legend()
-
-        # Text
-        ax.set_title('Row principal coordinates')
-        ei = self.explained_inertia_
-        ax.set_xlabel('Component {} ({:.2f}% inertia)'.format(x_component, 100 * ei[x_component]))
-        ax.set_ylabel('Component {} ({:.2f}% inertia)'.format(y_component, 100 * ei[y_component]))
-
-        return ax
+            warnings.warn("matplotlib must be installed to use this method. Please pip install matplotlib")

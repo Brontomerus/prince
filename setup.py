@@ -98,7 +98,6 @@ setup(
     #     'console_scripts': ['mycli=mymodule:cli'],
     # },
     install_requires=[
-        'matplotlib>=3.0.2',
         'numpy>=1.17.1',
         'pandas>=1.0.3',
         'scipy>=1.3.0',
@@ -110,6 +109,9 @@ setup(
             'pytest>=3.5.1',
             'pytest-cov>=2.6.0',
             'fbpca>=1.0'
+        ],
+        'plot': [
+            'matplotlib>=3.0.2'
         ]
     },
     include_package_data=True,

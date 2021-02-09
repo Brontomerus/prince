@@ -1,11 +1,10 @@
 """Multiple Correspondence Analysis (MCA)"""
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn import utils
+import warnings
 
 from . import ca
-from . import plot
 
 
 class MCA(ca.CA):
@@ -73,59 +72,71 @@ class MCA(ca.CA):
         Returns:
             matplotlib.Axis
         """
+        try:
+            import matplotlib.pyplot as plt
+            from . import plot
+        except ImportError:
+            plt = None
+            plot = None
 
-        self._check_is_fitted()
+        if plt is not None and plot is not None:
+            self._check_is_fitted()
 
-        if ax is None:
-            fig, ax = plt.subplots(figsize=figsize)
+            if ax is None:
+                fig, ax = plt.subplots(figsize=figsize)
 
-        # Add style
-        ax = plot.stylize_axis(ax)
+            # Add style
+            ax = plot.stylize_axis(ax)
 
-        # Plot row principal coordinates
-        if show_row_points or show_row_labels:
+            # Plot row principal coordinates
+            if show_row_points or show_row_labels:
 
-            row_coords = self.row_coordinates(X)
+                row_coords = self.row_coordinates(X)
 
-            if show_row_points:
-                ax.scatter(
-                    row_coords.iloc[:, x_component],
-                    row_coords.iloc[:, y_component],
-                    s=row_points_size,
-                    label=None,
-                    color=plot.GRAY['dark'],
-                    alpha=row_points_alpha
-                )
+                if show_row_points:
+                    ax.scatter(
+                        row_coords.iloc[:, x_component],
+                        row_coords.iloc[:, y_component],
+                        s=row_points_size,
+                        label=None,
+                        color=plot.GRAY['dark'],
+                        alpha=row_points_alpha
+                    )
 
-            if show_row_labels:
-                for _, row in row_coords.iterrows():
-                    ax.annotate(row.name, (row[x_component], row[y_component]))
+                if show_row_labels:
+                    for _, row in row_coords.iterrows():
+                        ax.annotate(row.name, (row[x_component], row[y_component]))
 
-        # Plot column principal coordinates
-        if show_column_points or show_column_labels:
+            # Plot column principal coordinates
+            if show_column_points or show_column_labels:
 
-            col_coords = self.column_coordinates(X)
-            x = col_coords[x_component]
-            y = col_coords[y_component]
+                col_coords = self.column_coordinates(X)
+                x = col_coords[x_component]
+                y = col_coords[y_component]
 
-            prefixes = col_coords.index.str.split('_').map(lambda x: x[0])
+                prefixes = col_coords.index.str.split('_').map(lambda x: x[0])
 
-            for prefix in prefixes.unique():
-                mask = prefixes == prefix
+                for prefix in prefixes.unique():
+                    mask = prefixes == prefix
 
-                if show_column_points:
-                    ax.scatter(x[mask], y[mask], s=column_points_size, label=prefix)
+                    if show_column_points:
+                        ax.scatter(x[mask], y[mask], s=column_points_size, label=prefix)
 
-                if show_column_labels:
-                    for i, label in enumerate(col_coords[mask].index):
-                        ax.annotate(label, (x[mask][i], y[mask][i]))
+                    if show_column_labels:
+                        for i, label in enumerate(col_coords[mask].index):
+                            ax.annotate(label, (x[mask][i], y[mask][i]))
 
-            ax.legend(ncol=legend_n_cols)
+                ax.legend(ncol=legend_n_cols)
 
-        # Text
-        ax.set_title('Row and column principal coordinates')
-        ei = self.explained_inertia_
-        ax.set_xlabel('Component {} ({:.2f}% inertia)'.format(x_component, 100 * ei[x_component]))
-        ax.set_ylabel('Component {} ({:.2f}% inertia)'.format(y_component, 100 * ei[y_component]))
+            # Text
+            ax.set_title('Row and column principal coordinates')
+            ei = self.explained_inertia_
+            ax.set_xlabel('Component {} ({:.2f}% inertia)'.format(x_component, 100 * ei[x_component]))
+            ax.set_ylabel('Component {} ({:.2f}% inertia)'.format(y_component, 100 * ei[y_component]))
 
-        return ax
+            return ax
+
+        else:
+            warnings.warn("matplotlib must be installed to use this method. Please pip install matplotlib")
+        
+        

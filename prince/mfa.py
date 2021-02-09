@@ -1,15 +1,12 @@
 """Multiple Factor Analysis (MFA)"""
 import itertools
-
-from matplotlib import markers
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn import utils
+import warnings
 
 from . import mca
 from . import pca
-from . import plot
 
 
 class MFA(pca.PCA):
@@ -168,37 +165,48 @@ class MFA(pca.PCA):
 
     def partial_row_coordinates(self, X):
         """Returns the row coordinates for each group."""
-        self._check_is_fitted()
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            plt = None
 
-        # Check input
-        if self.check_input:
-            utils.check_array(X, dtype=[str, np.number])
+        if plt is not None:
+            self._check_is_fitted()
 
-        # Prepare input
-        X = self._prepare_input(X)
+            # Check input
+            if self.check_input:
+                utils.check_array(X, dtype=[str, np.number])
 
-        # Define the projection matrix P
-        P = len(X) ** 0.5 * self.U_ / self.s_
+            # Prepare input
+            X = self._prepare_input(X)
 
-        # Get the projections for each group
-        coords = {}
-        for name, cols in sorted(self.groups.items()):
-            X_partial = X.loc[:, cols]
+            # Define the projection matrix P
+            P = len(X) ** 0.5 * self.U_ / self.s_
 
-            if not self.all_nums_[name]:
-                X_partial = pd.get_dummies(X_partial)
+            # Get the projections for each group
+            coords = {}
+            for name, cols in sorted(self.groups.items()):
+                X_partial = X.loc[:, cols]
 
-            Z_partial = X_partial / self.partial_factor_analysis_[name].s_[0]
-            coords[name] = len(self.groups) * (Z_partial @ Z_partial.T) @ P
+                if not self.all_nums_[name]:
+                    X_partial = pd.get_dummies(X_partial)
 
-        # Convert coords to a MultiIndex DataFrame
-        coords = pd.DataFrame({
-            (name, i): group_coords.loc[:, i]
-            for name, group_coords in coords.items()
-            for i in range(group_coords.shape[1])
-        })
+                Z_partial = X_partial / self.partial_factor_analysis_[name].s_[0]
+                coords[name] = len(self.groups) * (Z_partial @ Z_partial.T) @ P
 
-        return coords
+            # Convert coords to a MultiIndex DataFrame
+            coords = pd.DataFrame({
+                (name, i): group_coords.loc[:, i]
+                for name, group_coords in coords.items()
+                for i in range(group_coords.shape[1])
+            })
+
+            return coords
+
+        else:
+            warnings.warn("matplotlib must be installed to use this method. Please pip install matplotlib")
+
+        
 
     def column_correlations(self, X):
         """Returns the column correlations."""
@@ -218,56 +226,71 @@ class MFA(pca.PCA):
     def plot_partial_row_coordinates(self, X, ax=None, figsize=(6, 6), x_component=0, y_component=1,
                                      color_labels=None, **kwargs):
         """Plot the row principal coordinates."""
-        self._check_is_fitted()
+        try:
+            # lazy-load the matplotlib library
+            import matplotlib.pyplot as plt
+            from matplotlib import markers
+            from . import plot
+        except ImportError:
+            plt = None
+            plot = None
+            markers =None
 
-        if ax is None:
-            fig, ax = plt.subplots(figsize=figsize)
+        if plt is not None and plot is not None and markers is not None:
+            
+            self._check_is_fitted()
 
-        # Add plotting style
-        ax = plot.stylize_axis(ax)
+            if ax is None:
+                fig, ax = plt.subplots(figsize=figsize)
 
-        # Check input
-        if self.check_input:
-            utils.check_array(X, dtype=[str, np.number])
+            # Add plotting style
+            ax = plot.stylize_axis(ax)
 
-        # Prepare input
-        X = self._prepare_input(X)
+            # Check input
+            if self.check_input:
+                utils.check_array(X, dtype=[str, np.number])
 
-        # Retrieve partial coordinates
-        coords = self.partial_row_coordinates(X)
+            # Prepare input
+            X = self._prepare_input(X)
 
-        # Determine the color of each group if there are group labels
-        if color_labels is not None:
-            colors = {g: ax._get_lines.get_next_color() for g in sorted(list(set(color_labels)))}
+            # Retrieve partial coordinates
+            coords = self.partial_row_coordinates(X)
 
-        # Get the list of all possible markers
-        marks = itertools.cycle(list(markers.MarkerStyle.markers.keys()))
-        next(marks)  # The first marker looks pretty shit so we skip it
+            # Determine the color of each group if there are group labels
+            if color_labels is not None:
+                colors = {g: ax._get_lines.get_next_color() for g in sorted(list(set(color_labels)))}
 
-        # Plot points
-        for name in self.groups:
+            # Get the list of all possible markers
+            marks = itertools.cycle(list(markers.MarkerStyle.markers.keys()))
+            next(marks)  # The first marker looks pretty shit so we skip it
 
-            mark = next(marks)
+            # Plot points
+            for name in self.groups:
 
-            x = coords[name][x_component]
-            y = coords[name][y_component]
+                mark = next(marks)
 
-            if color_labels is None:
-                ax.scatter(x, y, marker=mark, label=name, **kwargs)
-                continue
+                x = coords[name][x_component]
+                y = coords[name][y_component]
 
-            for color_label, color in sorted(colors.items()):
-                mask = np.array(color_labels) == color_label
-                label = '{} - {}'.format(name, color_label)
-                ax.scatter(x[mask], y[mask], marker=mark, color=color, label=label, **kwargs)
+                if color_labels is None:
+                    ax.scatter(x, y, marker=mark, label=name, **kwargs)
+                    continue
 
-        # Legend
-        ax.legend()
+                for color_label, color in sorted(colors.items()):
+                    mask = np.array(color_labels) == color_label
+                    label = '{} - {}'.format(name, color_label)
+                    ax.scatter(x[mask], y[mask], marker=mark, color=color, label=label, **kwargs)
 
-        # Text
-        ax.set_title('Partial row principal coordinates')
-        ei = self.explained_inertia_
-        ax.set_xlabel('Component {} ({:.2f}% inertia)'.format(x_component, 100 * ei[x_component]))
-        ax.set_ylabel('Component {} ({:.2f}% inertia)'.format(y_component, 100 * ei[y_component]))
+            # Legend
+            ax.legend()
 
-        return ax
+            # Text
+            ax.set_title('Partial row principal coordinates')
+            ei = self.explained_inertia_
+            ax.set_xlabel('Component {} ({:.2f}% inertia)'.format(x_component, 100 * ei[x_component]))
+            ax.set_ylabel('Component {} ({:.2f}% inertia)'.format(y_component, 100 * ei[y_component]))
+
+            return ax
+
+        else:
+            warnings.warn("matplotlib must be installed to use this method. Please pip install matplotlib")

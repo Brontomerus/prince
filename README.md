@@ -55,6 +55,12 @@ Prince is a library for doing [factor analysis](https://www.wikiwand.com/en/Fact
 
 **Via PyPI**
 
+For all functionalities, including plotting functionalities described below:
+```sh
+$ pip install "prince[plot]"
+```
+
+For explicitly using the transformer objects without matplotlib plot support:
 ```sh
 $ pip install prince
 ```
